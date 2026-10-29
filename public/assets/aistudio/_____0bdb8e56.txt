@@ -1,0 +1,506 @@
+# 安卓员工 Wi-Fi 考勤系统：完整落地实施方案
+
+建议将项目命名为 WorkGate Attendance，面向 51–200 名员工，采用 Android 原生 App、Django 后端、PostgreSQL 数据库和 Web 管理后台的架构。
+
+核心规则很明确：员工必须登录自己的账号、连接公司指定的 Wi-Fi，并通过服务器验证后，才能执行上班或下班打卡。 所有打卡时间以服务器时间为准，员工不能自行修改打卡时间。
+
+先明确一个重要的技术边界：连接指定 Wi-Fi 可以作为打卡门槛，但仅凭 Wi-Fi 名称（SSID）无法绝对证明员工就在公司。普通 Android App 也不能在所有设备和系统版本上无条件读取 Wi-Fi 信息。因此，方案会采用可落地的 Wi-Fi 检测、服务器校验和防伪机制，同时明确其安全边界。
+
+## 一、系统整体架构
+
+员工 Android App
+
+登录 · Wi-Fi 检测 · 上下班打卡 · 个人记录
+
+HTTPS / JSON API
+
+Django REST Framework
+
+身份验证 · Wi-Fi 策略校验 · 考勤规则 · 权限控制 · 审计日志
+
+PostgreSQL
+
+员工、班次、打卡、审批和审计数据
+
+管理网页
+
+员工管理、考勤查询、报表和系统设置
+
+部署组件：Nginx + Gunicorn + Django + PostgreSQL；Redis 可按需要用于缓存、限流或后台任务。
+
+### 技术选型
+
+| 模块     | 技术                                | 作用               |
+| ------ | --------------------------------- | ---------------- |
+| 安卓端    | Kotlin + Jetpack Compose          | 原生界面和 Wi-Fi 状态检测 |
+| 网络通信   | Retrofit + OkHttp                 | 调用后端 API         |
+| 本地安全存储 | Android Keystore + 加密存储方案         | 保护会话凭证           |
+| 后端     | Python + Django + DRF             | 业务逻辑、认证、接口       |
+| 数据库    | PostgreSQL                        | 持久化考勤数据          |
+| 管理后台   | Django Admin + 自定义考勤页面            | 日常运营管理           |
+| 部署     | Docker Compose + Nginx + Gunicorn | 可复现的生产部署         |
+| 监控备份   | 日志、健康检查、数据库定期备份                   | 运维和故障恢复          |
+
+对于 51–200 人的规模，第一版采用模块化单体架构即可，不需要 Kubernetes 或微服务。它能降低部署和维护成本，并保留后续扩展空间。
+
+## 二、员工打卡的完整业务流程
+
+① 员工登录
+
+验证账号、密码、员工状态和设备会话
+
+② 检查当前 Wi-Fi
+
+读取当前连接状态，并与后台配置的公司 SSID 比较
+
+③ 员工点击打卡
+
+获取短期打卡挑战，提交请求和唯一请求编号
+
+④ 服务端执行校验
+
+验证身份、Wi-Fi 策略、班次、重复请求及打卡顺序
+
+⑤ 保存记录并返回结果
+
+使用数据库事务写入服务器时间，生成考勤结果
+
+### App 首页应当展示什么
+
+员工考勤
+
+# 今日打卡
+
+公司 Wi-Fi
+
+示例：Company-Staff
+
+已连接
+
+上班打卡
+
+## 08:56
+
+已完成 · 示例
+
+下班打卡
+
+## 待打卡
+
+尚未完成
+
+上班打卡成功
+
+这是静态界面示意，不是真实考勤记录
+
+界面状态必须由服务器实际返回的数据驱动。上面的时间和 Wi-Fi 名称仅用于演示，不应作为正式系统中的默认打卡记录。
+
+## 三、数据库设计
+
+建议使用 Django 自定义用户模型，并将考勤数据分为以下核心表。
+
+### 1. 数据表结构
+
+| 表名                   | 主要字段                                                               | 用途            |
+| -------------------- | ------------------------------------------------------------------ | ------------- |
+| `users`              | `id`、`username`、`password_hash`、`role`、`is_active`                 | 员工及管理员账号      |
+| `employees`          | `user_id`、`employee_no`、`department_id`、`hire_date`                | 员工资料          |
+| `departments`        | `id`、`name`、`manager_id`                                           | 部门管理          |
+| `wifi_policies`      | `id`、`ssid`、`site_id`、`is_active`                                  | 公司 Wi-Fi 打卡策略 |
+| `devices`            | `id`、`user_id`、`device_key_id`、`status`                            | 员工设备登记        |
+| `shifts`             | `id`、`name`、`start_time`、`end_time`、`timezone`                     | 班次及工作时间       |
+| `attendance_records` | `id`、`user_id`、`shift_id`、`work_date`、`check_in_at`、`check_out_at` | 每日考勤记录        |
+| `attendance_events`  | `id`、`record_id`、`event_type`、`server_time`、`result`               | 不可随意修改的打卡事件流水 |
+| `leave_requests`     | `id`、`user_id`、`start_at`、`end_at`、`status`                        | 请假与审批         |
+| `audit_logs`         | `id`、`actor_id`、`action`、`target_id`、`created_at`                  | 管理操作审计        |
+
+### 2. 关键数据库约束
+
+这些约束比单纯依靠前端按钮更重要。
+
+- 员工编号唯一，账号停用后禁止新打卡。
+- `attendance_records` 对员工、班次和工作日期建立唯一约束，避免重复创建同一天的考勤记录。
+- 使用数据库事务处理打卡操作，避免员工连续点击产生多条记录。
+- `check_out_at` 不得早于 `check_in_at`。
+- 事件流水保存成功、拒绝和异常原因；普通管理员不能直接修改历史事件。
+- 请假、迟到、早退和缺勤应由考勤规则计算，而不是由客户端自行决定。
+
+对于跨午夜班次，应以班次所属的工作日期计算，而不是简单地按照手机当前日历日期分组。
+
+### 3. 时间和迟到规则
+
+数据库统一保存 UTC 时间戳，展示时转换到公司配置的时区。公司所在地如果在肯尼亚，可以将默认时区配置为 `Africa/Nairobi`。
+
+例如，假设某班次规定 09:00 上班，08:55 打卡，结果应为正常；09:07 打卡，则依据公司设定的宽限时间判定迟到。所有判断由后端执行。
+
+## 四、API 接口设计
+
+统一使用 `/api/v1/` 作为 API 前缀，所有请求和响应采用 JSON 格式。员工接口必须认证，管理员接口必须经过角色和对象权限检查。Django REST Framework 支持认证、权限和请求限流等机制，可用于实现这些控制。
+
+[image](https://www.google.com/s2/favicons?domain=https://www.django-rest-framework.org\&sz=32)
+
+Django REST framework+2
+
+
+
+### 1. 员工端接口
+
+| 方法     | 接口                                       | 用途          |
+| ------ | ---------------------------------------- | ----------- |
+| `POST` | `/api/v1/auth/login/`                    | 员工登录        |
+| `POST` | `/api/v1/auth/refresh/`                  | 刷新登录令牌      |
+| `POST` | `/api/v1/auth/logout/`                   | 退出登录、撤销会话   |
+| `GET`  | `/api/v1/me/`                            | 获取员工资料      |
+| `GET`  | `/api/v1/attendance/today/`              | 获取今日打卡状态    |
+| `GET`  | `/api/v1/attendance/history/`            | 查询个人考勤历史    |
+| `POST` | `/api/v1/attendance/challenge/`          | 获取短期有效的打卡挑战 |
+| `POST` | `/api/v1/attendance/check-in/`           | 上班打卡        |
+| `POST` | `/api/v1/attendance/check-out/`          | 下班打卡        |
+| `POST` | `/api/v1/attendance/correction-request/` | 申请补卡或更正     |
+
+### 2. 管理后台接口
+
+| 方法         | 接口                                        | 用途            |
+| ---------- | ----------------------------------------- | ------------- |
+| `GET/POST` | `/api/v1/admin/employees/`                | 查询、创建员工       |
+| `PATCH`    | `/api/v1/admin/employees/{id}/`           | 更新或停用员工       |
+| `GET/POST` | `/api/v1/admin/wifi-policies/`            | 管理允许打卡的 Wi-Fi |
+| `GET/POST` | `/api/v1/admin/shifts/`                   | 管理班次          |
+| `GET`      | `/api/v1/admin/attendance/`               | 查询全员考勤        |
+| `GET`      | `/api/v1/admin/reports/daily/`            | 每日考勤报表        |
+| `GET`      | `/api/v1/admin/reports/monthly/`          | 月度考勤汇总        |
+| `GET`      | `/api/v1/admin/audit-logs/`               | 查询管理操作记录      |
+| `POST`     | `/api/v1/admin/corrections/{id}/approve/` | 审批补卡申请        |
+
+报表接口应支持日期、部门、员工编号和考勤状态筛选，并支持 CSV 或 Excel 导出。管理员只能访问其授权范围内的数据。
+
+### 3. 打卡请求示例
+
+员工登录后先获取短期挑战，再提交打卡请求。示例仅用于定义接口格式：
+
+```
+POST /api/v1/attendance/check-in/
+Authorization: Bearer <access_token>
+Idempotency-Key: 2f7c1e8b-...
+Content-Type: application/json
+```
+
+```
+{
+  "challenge_id": "challenge-uuid",
+  "wifi": {
+    "connected": true,
+    "ssid": "Company-Staff"
+  },
+  "device_id": "registered-device-id"
+}
+```
+
+服务器成功响应：
+
+```
+{
+  "success": true,
+  "event": "CHECK_IN",
+  "server_time": "2026-10-29T05:56:00Z",
+  "status": "ON_TIME",
+  "message": "上班打卡成功"
+}
+```
+
+这里的时间为格式示例。正式系统应返回实际写入数据库的服务器时间，而不能相信客户端传来的时间。
+
+必须注意： `connected: true` 和 `ssid` 都是客户端提供的数据，攻击者可能伪造。它们只能作为基础检测结果，不能独立证明连接真实。挑战令牌可以防止部分重放攻击，但不能单独证明 Wi-Fi 的真实性。
+
+### 4. 后端打卡核心逻辑
+
+下面是 Django 业务层的伪代码，表达实现时必须遵守的处理顺序：
+
+```
+@transaction.atomicdef create_check_in(user, challenge, request_data):    verify_active_employee(user)    verify_registered_device(user, request_data)    verify_challenge(challenge, user)    verify_wifi_policy(request_data["wifi"])    verify_shift_allows_check_in(user)    record = get_or_create_locked_attendance_record(user)    if record.check_in_at is not None:        raise DuplicateCheckIn()    now = timezone.now()    record.check_in_at = now    record.save(update_fields=["check_in_at"])    create_immutable_attendance_event(        record=record,        event_type="CHECK_IN",        server_time=now,    )    return record
+```
+
+生产代码还必须正确处理并发请求、挑战的一次性消费、唯一约束冲突和幂等键。不要直接复制这段伪代码作为可运行实现。
+
+## 五、Android 权限与 Wi-Fi 检测
+
+这是整个项目最需要提前验证的技术环节之一。
+
+Android 13（API 33）及以上对附近 Wi-Fi 设备访问采用了新的权限机制；部分 Wi-Fi 信息读取在不同 Android 版本和 API 下仍可能要求位置权限。若权限不足，读取 SSID 可能返回未知值，而不一定是程序错误。
+
+[image](https://www.google.com/s2/favicons?domain=https://developer.android.com\&sz=32)
+
+Android Developers+1
+
+
+
+### 1. 建议的权限清单
+
+```
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission
+        android:name="android.permission.INTERNET" />
+
+    <uses-permission
+        android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <uses-permission
+        android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
+
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="32" />
+
+    <application
+        android:usesCleartextTraffic="false">
+    </application>
+</manifest>
+```
+
+这是一份开发起点，不是适用于所有设备的最终权限清单。`NEARBY_WIFI_DEVICES` 主要用于相应的附近设备和 Wi-Fi 操作，并不保证所有设备都能通过它读取当前 SSID。开发团队必须根据实际调用的 API、目标 SDK 和支持的 Android 版本调整权限。
+
+[image](https://www.google.com/s2/favicons?domain=https://developer.android.com\&sz=32)
+
+Android Developers+1
+
+
+
+### 2. Wi-Fi 验证逻辑
+
+情况 A：连接指定 Wi-Fi，且信息可读取
+
+显示已连接状态，允许进入打卡确认流程；提交后仍由服务器验证其他条件。
+
+情况 B：未连接公司 Wi-Fi
+
+禁用上班、下班按钮，提示员工连接指定网络后重试。
+
+情况 C：权限被拒绝或 SSID 未知
+
+不应误判为已连接。提示员工检查 Wi-Fi 和系统权限；提供管理员审核的异常处理流程。
+
+建议第一版只读取当前连接信息，不主动扫描周边无线网络，也不要求持续定位或后台常驻运行。这样既减少权限和电量负担，也更符合手动打卡的使用场景。
+
+## 六、安全机制与防作弊
+
+| 风险          | 必须采取的措施                    |
+| ----------- | -------------------------- |
+| 修改手机时间      | 仅使用服务器时间                   |
+| 重复点击打卡      | 数据库事务、唯一约束、幂等键             |
+| 复制他人账号      | 每人独立账号，支持设备登记和撤销           |
+| 伪造 Wi-Fi 名称 | 不能仅信任 SSID；优先增加公司网络出口或内网验证 |
+| 重放旧请求       | 短期随机挑战、一次性消费、请求去重          |
+| 越权查看他人记录    | 服务端角色权限和对象级权限检查            |
+| 管理员私自修改记录   | 追加式审计日志、补卡审批和修改前后值记录       |
+| 窃取登录令牌      | HTTPS、短期访问令牌、安全存储和可撤销会话    |
+| 暴力尝试密码      | 登录限流、失败审计、适当的账户锁定策略        |
+| 数据库泄漏       | 最小权限数据库账号、备份加密、密钥与代码分离     |
+
+OWASP 的移动应用安全标准覆盖了认证、加密、敏感数据存储、网络通信以及应用防篡改等方面，可作为正式上线前的安全检查依据。
+
+[image](https://www.google.com/s2/favicons?domain=https://mas.owasp.org\&sz=32)
+
+OWASP Mobile Application Security+1
+
+
+
+### 关键边界：Wi-Fi 验证到底有多可靠？
+
+基础版：匹配 SSID
+
+能满足普通员工操作流程的限制，但有被伪造的可能。
+
+推荐增强：匹配 SSID + 验证公司网络
+
+在员工手机连接 Wi-Fi 的同时，要求 App 能访问公司专用内网验证地址，或者满足公司固定公网出口的验证策略。后端应独立检查网络证据，不能直接相信客户端上报的公网 IP 或 Wi-Fi 信息。
+
+如果公司 Wi-Fi 没有互联网出口固定 IP，或者员工使用分流 VPN，网络出口验证需要结合实际网络设计。即使采用增强方案，也不能承诺绝对防作弊；但它比单纯比较 Wi-Fi 名称更可靠。
+
+## 七、管理员网页功能规划
+
+管理员登录后，建议使用左侧导航栏和简洁的考勤数据表格。第一版不需要复杂的数据大屏，重点是让 HR 可以快速处理日常工作。
+
+## 管理后台预览
+
+界面示意
+
+员工总数
+
+# 128
+
+已上班打卡
+
+# 112
+
+迟到人数
+
+# 5
+
+待核实异常
+
+# 3
+
+以上均为虚构示例数据，不是实际统计结果。
+
+主要菜单
+
+员工与部门
+
+班次与排班
+
+Wi-Fi 策略
+
+每日考勤
+
+报表导出
+
+审计与审批
+
+管理员应能配置上班时间、下班时间、迟到宽限时间、节假日和公司 Wi-Fi 策略。修改已生效的班次规则时，需要记录修改人、生效日期和变更内容，避免历史考勤因配置变化而被无意改写。
+
+## 八、项目目录结构
+
+建议采用 Android 和 Django 分离的代码仓库结构，方便独立构建 APK 和部署服务器。
+
+```
+workgate-attendance/
+├── android-app/
+│   ├── app/
+│   ├── core/
+│   │   ├── network/
+│   │   ├── security/
+│   │   └── database/
+│   └── README.md
+├── backend/
+│   ├── config/
+│   ├── apps/
+│   │   ├── accounts/
+│   │   ├── employees/
+│   │   ├── wifi_policies/
+│   │   ├── shifts/
+│   │   ├── attendance/
+│   │   ├── leave/
+│   │   ├── reports/
+│   │   └── audit/
+│   ├── tests/
+│   ├── manage.py
+│   └── requirements/
+├── admin-web/
+│   ├── templates/
+│   ├── static/
+│   └── README.md
+├── deploy/
+│   ├── Dockerfile
+│   ├── compose.yaml
+│   ├── nginx/
+│   └── backup/
+├── docs/
+│   ├── architecture.md
+│   ├── database.md
+│   ├── api.md
+│   └── deployment.md
+└── README.md
+```
+
+第一版管理后台可以直接用 Django 模板配合 Bootstrap 开发，并利用 Django Admin 管理基础数据。这样可以减少单独开发前端框架的成本。待需求稳定后，再考虑独立的 React 或 Vue 管理前端。
+
+## 九、开发阶段与时间安排
+
+下面是一个合理的项目计划估算，实际时间取决于开发人员经验、设备兼容性以及是否需要复杂的排班规则。
+
+## 第 1 周
+
+阶段 1：需求与基础设施
+
+确定员工、班次、Wi-Fi 名称、时区和迟到规则；创建仓库、数据库模型和部署环境。
+
+## 第 2 周
+
+阶段 2：Django 后端
+
+实现账号认证、员工管理、打卡事务、班次计算、权限控制和 API 测试。
+
+## 第 3 周
+
+阶段 3：安卓 App
+
+完成登录、Wi-Fi 检测、权限引导、上下班打卡、历史记录和异常提示。
+
+## 第 4 周
+
+阶段 4：管理员网页
+
+实现员工管理、Wi-Fi 配置、考勤查询、审批、筛选和报表导出。
+
+## 第 5–6 周
+
+阶段 5：联调与试运行
+
+测试不同 Android 版本、权限拒绝、重复请求、并发打卡、备份恢复及异常审批；先让一个部门试用，再推广全员。
+
+如果由一名开发人员独立完成，建议额外预留时间用于设备兼容性、部署和问题修复。Wi-Fi 权限及不同厂商系统的行为应尽早测试，不要等到最后一周才验证。
+
+## 十、生产环境部署方案
+
+### 推荐服务器配置
+
+对于 51–200 名员工，第一版可从以下配置开始：
+
+| 资源     | 建议起点                 |
+| ------ | -------------------- |
+| CPU    | 2–4 vCPU             |
+| 内存     | 4–8 GB RAM           |
+| 系统盘    | 40–80 GB SSD         |
+| 操作系统   | Ubuntu LTS           |
+| 数据库    | PostgreSQL           |
+| Web 服务 | Nginx + Gunicorn     |
+| 容器     | Docker Compose，可选但推荐 |
+| 域名     | 独立 HTTPS 域名          |
+| 备份     | 每日数据库备份，异地保存         |
+
+这只是初始配置建议，不是性能测试结论。对于这种规模，业务逻辑通常不复杂，但仍需通过实际并发测试确认服务器配置。
+
+### 部署步骤
+
+1. 准备 Ubuntu 服务器、域名和 HTTPS 证书。
+2. 部署 PostgreSQL，并配置独立数据库账号、持久化存储和备份。
+3. 部署 Django，设置生产环境密钥、允许的域名、日志和数据库连接。
+4. 配置 Nginx 反向代理与 HTTPS，关闭公网直接访问数据库的入口。
+5. 执行数据库迁移、创建管理员、导入员工和班次。
+6. 配置公司 Wi-Fi 策略，构建签名 APK，先在测试手机安装。
+7. 完成验收后向员工分发 APK，并建立版本升级和撤销设备流程。
+
+正式环境不要使用 Django 开发服务器，不要把数据库密码、签名密钥或生产令牌提交到 GitHub。若代码托管在 GitHub，应通过受保护的环境变量或部署密钥进行发布。
+
+## 十一、上线验收标准
+
+建议把以下条件作为第一版交付的硬性要求：
+
+- 员工登录后才能查看个人考勤。
+- 未连接指定 Wi-Fi 或无法完成必要的本地验证时，App 不允许正常打卡。
+- 上班和下班打卡分别执行，并且服务器时间是唯一可信的考勤时间。
+- 同一请求重试不会产生重复考勤事件。
+- 员工不能通过修改请求中的员工编号查看或修改其他人的数据。
+- 管理员的操作有审计记录，补卡需要经过授权审批。
+- Android 版本和常见手机厂商的 Wi-Fi 权限行为经过真实设备测试。
+- 数据库备份可以恢复，服务器重启后服务能正常启动。
+- 128 个并发用户的模拟测试可作为一个初始压力测试目标，最终目标应依据实际使用高峰调整。
+- 试运行期间，HR 能核对 App 记录与人工考勤记录，并处理例外情况。
+
+## 十二、最终建议
+
+先开发一个可上线的 MVP，范围控制在：
+
+1. 安卓员工 App：登录、Wi-Fi 检测、手动上下班打卡、个人历史记录。
+2. Django 后端：认证、考勤规则、服务器时间、幂等处理和审计。
+3. 管理员网页：员工管理、Wi-Fi 配置、班次管理、考勤查询及 Excel 导出。
+4. 生产部署：HTTPS、数据库备份、日志监控和 APK 更新。
+
+最重要的开发顺序是先完成后端考勤规则和 Wi-Fi 兼容性验证，再开发完整的安卓界面。 这样可以尽早确认项目最关键的技术可行性，避免界面完成后才发现某些员工手机无法可靠读取 SSID。
+
+如果要正式投入员工使用，还应制定员工考勤数据的访问权限、保留期限和隐私告知规则。不要默认收集持续位置、通讯录或其他与考勤无关的数据。

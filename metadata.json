@@ -1,0 +1,8 @@
+{
+  "name": "Himart WIFI打卡",
+  "description": "Himart 海玛特智能 Wi-Fi 考勤系统。包含 REST API 服务端、Android 客户端仿真器、HR 管理后台与 Wi-Fi 策略验证防伪架构。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
