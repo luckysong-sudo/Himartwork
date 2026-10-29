@@ -4,8 +4,8 @@ import { Smartphone, LayoutDashboard, Sparkles, Server, UserCheck, Languages, Sh
 import { Language, Translations } from '../i18n/translations';
 
 interface HeaderProps {
-  activeTab: 'app' | 'admin' | 'ai' | 'arch';
-  setActiveTab: (tab: 'app' | 'admin' | 'ai' | 'arch') => void;
+  activeTab: 'app' | 'admin' | 'apk' | 'ai' | 'arch';
+  setActiveTab: (tab: 'app' | 'admin' | 'apk' | 'ai' | 'arch') => void;
   currentUser: User;
   allUsers: User[];
   onSwitchUser: (userId: string) => void;
@@ -72,6 +72,21 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
+              onClick={() => setActiveTab('apk')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'apk'
+                  ? 'bg-emerald-600 text-white shadow-sm font-semibold'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{t.tabApk}</span>
+              <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-1.5 py-0.2 rounded font-mono">
+                APK
+              </span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('ai')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 activeTab === 'ai'
@@ -135,28 +150,34 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Mobile / Tablet nav row */}
-      <div className="lg:hidden flex items-center justify-around bg-slate-950 border-t border-slate-800 py-2 px-2 text-xs">
+      <div className="lg:hidden flex items-center justify-around bg-slate-950 border-t border-slate-800 py-2 px-1 text-xs overflow-x-auto">
         <button
           onClick={() => setActiveTab('app')}
-          className={`px-2.5 py-1 rounded-md ${activeTab === 'app' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400'}`}
+          className={`px-2 py-1 rounded-md shrink-0 ${activeTab === 'app' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400'}`}
         >
           {t.tabApp}
         </button>
         <button
           onClick={() => setActiveTab('admin')}
-          className={`px-2.5 py-1 rounded-md ${activeTab === 'admin' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400'}`}
+          className={`px-2 py-1 rounded-md shrink-0 ${activeTab === 'admin' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400'}`}
         >
           {t.tabAdmin}
         </button>
         <button
+          onClick={() => setActiveTab('apk')}
+          className={`px-2 py-1 rounded-md shrink-0 font-bold ${activeTab === 'apk' ? 'bg-emerald-600 text-white' : 'text-emerald-400'}`}
+        >
+          APK 下载
+        </button>
+        <button
           onClick={() => setActiveTab('ai')}
-          className={`px-2.5 py-1 rounded-md ${activeTab === 'ai' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400'}`}
+          className={`px-2 py-1 rounded-md shrink-0 ${activeTab === 'ai' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400'}`}
         >
           {t.tabAi}
         </button>
         <button
           onClick={() => setActiveTab('arch')}
-          className={`px-2.5 py-1 rounded-md ${activeTab === 'arch' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400'}`}
+          className={`px-2 py-1 rounded-md shrink-0 ${activeTab === 'arch' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400'}`}
         >
           {t.tabArch}
         </button>

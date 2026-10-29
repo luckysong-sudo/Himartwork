@@ -5,10 +5,11 @@ import { AndroidSimulator } from './components/AndroidSimulator';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AiAnalyticsView } from './components/AiAnalyticsView';
 import { ArchitectureView } from './components/ArchitectureView';
+import { ApkGeneratorView } from './components/ApkGeneratorView';
 import { Language, TRANSLATIONS } from './i18n/translations';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'app' | 'admin' | 'ai' | 'arch'>('app');
+  const [activeTab, setActiveTab] = useState<'app' | 'admin' | 'apk' | 'ai' | 'arch'>('apk');
 
   // Language state (default: 'zh', persisted in localStorage)
   const [language, setLanguage] = useState<Language>(() => {
@@ -101,6 +102,58 @@ export default function App() {
       console.error('Failed to switch user:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Staff Login Action
+  const handleLogin = async (credential: string, deviceId: string) => {
+    try {
+      const res = await fetch('/api/v1/auth/login/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: credential, deviceId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchAllData();
+      }
+      return data;
+    } catch (err: any) {
+      return { success: false, message: err?.message || (language === 'zh' ? '网络通信异常' : 'Network communication error') };
+    }
+  };
+
+  // Staff Register Action
+  const handleRegister = async (data: {
+    name: string;
+    employeeNo: string;
+    department: string;
+    position: string;
+    deviceId: string;
+  }) => {
+    try {
+      const res = await fetch('/api/v1/auth/register/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const resData = await res.json();
+      if (resData.success) {
+        await fetchAllData();
+      }
+      return resData;
+    } catch (err: any) {
+      return { success: false, message: err?.message || (language === 'zh' ? '注册请求失败' : 'Registration failed') };
+    }
+  };
+
+  // Staff Logout Action
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/v1/auth/logout/', { method: 'POST' });
+      await fetchAllData();
+    } catch (err) {
+      console.error('Logout error:', err);
     }
   };
 
@@ -248,11 +301,15 @@ export default function App() {
         {activeTab === 'app' && (
           <AndroidSimulator
             currentUser={currentUser}
+            allUsers={allUsers}
             todayRecord={todayRecord}
             history={userHistory}
             onCheckIn={handleCheckIn}
             onCheckOut={handleCheckOut}
             onSubmitCorrection={handleSubmitCorrection}
+            onLogin={handleLogin}
+            onRegister={handleRegister}
+            onLogout={handleLogout}
             refreshToday={fetchAllData}
             language={language}
             t={t}
@@ -279,6 +336,8 @@ export default function App() {
             t={t}
           />
         )}
+
+        {activeTab === 'apk' && <ApkGeneratorView language={language} t={t} />}
 
         {activeTab === 'ai' && <AiAnalyticsView language={language} t={t} />}
 

@@ -57,6 +57,82 @@ class AttendanceStore {
     return this.users;
   }
 
+  public findUserByCredential(credential: string): User | undefined {
+    const cred = credential.trim().toLowerCase();
+    return this.users.find((u) => u.username.toLowerCase() === cred || u.employeeNo.toLowerCase() === cred);
+  }
+
+  public registerEmployee(data: {
+    name: string;
+    employeeNo: string;
+    department: string;
+    position: string;
+    shiftId?: string;
+    deviceId: string;
+  }): { success: boolean; user?: User; message?: string } {
+    const existing = this.users.find(
+      (u) => u.employeeNo.toLowerCase() === data.employeeNo.trim().toLowerCase()
+    );
+    if (existing) {
+      return { success: false, message: `工号 ${data.employeeNo} 已被占用，请使用其他工号` };
+    }
+
+    const newUser: User = {
+      id: `u-${Date.now()}`,
+      username: data.name.toLowerCase().replace(/\s+/g, '_'),
+      name: data.name,
+      role: 'EMPLOYEE',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      employeeNo: data.employeeNo,
+      department: data.department,
+      position: data.position,
+      shiftId: data.shiftId || 'shift-morning',
+      deviceId: data.deviceId,
+      isActive: true,
+      hireDate: new Date().toISOString().split('T')[0],
+    };
+
+    this.users.unshift(newUser);
+    this.currentUserId = newUser.id;
+
+    this.logAudit(
+      newUser.id,
+      newUser.name,
+      'EMPLOYEE',
+      'EMPLOYEE_REGISTERED',
+      `新商超员工入职自主注册 [${newUser.employeeNo}]`,
+      `部门: ${newUser.department}, 绑定设备: ${newUser.deviceId}`
+    );
+
+    return { success: true, user: newUser };
+  }
+
+  public loginUser(credential: string, deviceId?: string): { success: boolean; user?: User; message?: string } {
+    const user = this.findUserByCredential(credential);
+    if (!user) {
+      return { success: false, message: '工号或用户名不存在，请核对或先注册' };
+    }
+    if (!user.isActive) {
+      return { success: false, message: '该员工账号已被停用，禁止登录考勤系统' };
+    }
+
+    if (deviceId) {
+      user.deviceId = deviceId;
+    }
+    this.currentUserId = user.id;
+
+    this.logAudit(
+      user.id,
+      user.name,
+      user.role,
+      'EMPLOYEE_LOGIN_SUCCESS',
+      `商超员工登录成功 [${user.employeeNo}]`,
+      `设备指纹: ${user.deviceId}`
+    );
+
+    return { success: true, user };
+  }
+
   public addUser(user: Omit<User, 'id'>): User {
     const newUser: User = {
       ...user,

@@ -10,6 +10,7 @@ export interface Translations {
   // Tabs
   tabApp: string;
   tabAdmin: string;
+  tabApk: string;
   tabAi: string;
   tabArch: string;
 
@@ -34,6 +35,24 @@ export interface Translations {
   simSecurityNoticeTitle: string;
   simSecurityNotice1: string;
   simSecurityNotice2: string;
+
+  // Login & Registration
+  loginTab: string;
+  registerTab: string;
+  usernameOrEmpNo: string;
+  passwordLabel: string;
+  confirmPasswordLabel: string;
+  quickDemoLogin: string;
+  loginBtn: string;
+  loggingInBtn: string;
+  registerBtn: string;
+  registerSuccess: string;
+  logoutBtn: string;
+  notRegisteredHint: string;
+  alreadyRegisteredHint: string;
+  bindDeviceNotice: string;
+  passwordMismatch: string;
+  loginFailed: string;
 
   // Android App Frame
   appTitle: string;
@@ -219,6 +238,27 @@ export interface Translations {
   copyBtn: string;
   copiedBtn: string;
 
+  // APK Generator Tab
+  apkGeneratorTitle: string;
+  apkGeneratorSubtitle: string;
+  buildSettingsTitle: string;
+  storeBranchLabel: string;
+  apiBaseUrlLabel: string;
+  appVersionLabel: string;
+  packageNameLabel: string;
+  keystoreSignLabel: string;
+  buildApkBtn: string;
+  buildingApkBtn: string;
+  downloadApkBtn: string;
+  scanQrInstall: string;
+  qrInstructions: string;
+  apkFingerprint: string;
+  apkSize: string;
+  targetSdk: string;
+  buildLogTitle: string;
+  installGuideTitle: string;
+  sourceCodeTab: string;
+
   // Footer
   footerCopyright: string;
   footerDesc: string;
@@ -233,6 +273,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
 
     tabApp: 'Android 员工 App 仿真',
     tabAdmin: '商超考勤管理后台',
+    tabApk: '生成与下载打卡 APK',
     tabAi: 'AI 考勤智能风控',
     tabArch: '技术架构与部署',
 
@@ -255,6 +296,24 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     simSecurityNoticeTitle: '商超服务器安全判定标准',
     simSecurityNotice1: '1. 统一采用服务端标准时间，不受收银员/理货员修改手机本地时间影响。',
     simSecurityNotice2: '2. 打卡前获取 60 秒 Challenge Nonce，严格验证超市各分区 Wi-Fi 白名单。',
+
+    // Login & Registration
+    loginTab: '商超员工登录',
+    registerTab: '新员工入职注册',
+    usernameOrEmpNo: '商超工号或账号名 (如 HM-1002 / HM-3015)',
+    passwordLabel: '登录密码',
+    confirmPasswordLabel: '确认登录密码',
+    quickDemoLogin: '快速一键登录体验员工账号:',
+    loginBtn: '立即登录并绑定 Android 设备 Key',
+    loggingInBtn: '正在验证凭证与 Keystore 硬件指纹...',
+    registerBtn: '提交入职登记并生成设备 Key',
+    registerSuccess: '入职注册成功，已为您绑定本机 Keystore 并登录！',
+    logoutBtn: '退出登录',
+    notRegisteredHint: '新入职商超员工？点击切换至【入职注册】',
+    alreadyRegisteredHint: '已有工号？点击返回【员工登录】',
+    bindDeviceNotice: '首次登录或注册时，系统将自动读取本 Android 设备的 Keystore 硬件私钥进行绑定，保障一人一机防篡改。',
+    passwordMismatch: '两次输入的密码不一致，请核对',
+    loginFailed: '商超工号或密码错误，或该员工已被管理员停用',
 
     appTitle: '商超员工 Wi-Fi 考勤',
     appCompany: 'Himart 海玛特超市',
@@ -426,6 +485,27 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     copyBtn: '复制代码',
     copiedBtn: '已复制',
 
+    // APK Generator Tab
+    apkGeneratorTitle: 'Himart 商超员工打卡 APK 生成与分发中心',
+    apkGeneratorSubtitle: '一键编译打包、签名生成 Android 原生考勤安装包，支持扫码极速安装与门店员工分发',
+    buildSettingsTitle: 'APK 编译与打包配置',
+    storeBranchLabel: '目标商超门店',
+    apiBaseUrlLabel: '后端 API 通信地址 (生产环境)',
+    appVersionLabel: 'App 发布版本号',
+    packageNameLabel: '应用包名 (Package Name)',
+    keystoreSignLabel: 'Keystore 硬件签名',
+    buildApkBtn: '⚡ 一键编译生成 APK 安装包',
+    buildingApkBtn: '正在执行 Gradle 编译与 R8 混淆签名流水线...',
+    downloadApkBtn: '立即下载 Himart 打卡 APK (Release)',
+    scanQrInstall: '手机扫码极速安装',
+    qrInstructions: '请使用 Android 手机相机或自带浏览器扫描二维码，即可直接下载并安装 Himart 考勤客户端',
+    apkFingerprint: 'SHA-256 签名指纹',
+    apkSize: '安装包体积',
+    targetSdk: '兼容系统版本',
+    buildLogTitle: 'Gradle 编译与构建实时终端日志',
+    installGuideTitle: '商超员工 Android 安装与 Wi-Fi 权限配置说明',
+    sourceCodeTab: '查看 Android 原生工程完整源码',
+
     footerCopyright: 'Himart Co., Ltd. (海玛特超市) · Supermarket Attendance Enterprise Edition',
     footerDesc: '专为商超零售连锁打造的 Android Jetpack Compose + Django + PostgreSQL 软硬一体化防伪考勤系统',
   },
@@ -438,6 +518,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
 
     tabApp: 'Android Staff App Simulator',
     tabAdmin: 'Store HR Admin Dashboard',
+    tabApk: 'Build & Download APK',
     tabAi: 'AI Attendance Risk Analytics',
     tabArch: 'System Architecture & Deploy',
 
@@ -460,6 +541,24 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     simSecurityNoticeTitle: 'Server-Authoritative Anti-Spoofing Rules',
     simSecurityNotice1: '1. Official check-in timestamps always use backend server time, ignoring device local clock adjustments.',
     simSecurityNotice2: '2. Check-ins require a short-lived 60s Challenge Nonce and matching whitelisted supermarket branch SSIDs.',
+
+    // Login & Registration
+    loginTab: 'Staff Login',
+    registerTab: 'New Staff Registration',
+    usernameOrEmpNo: 'Employee ID or Username (e.g., HM-1002 / HM-3015)',
+    passwordLabel: 'Password',
+    confirmPasswordLabel: 'Confirm Password',
+    quickDemoLogin: 'Quick Demo Staff Accounts:',
+    loginBtn: 'Log In & Bind Android Device Key',
+    loggingInBtn: 'Verifying credentials & Keystore...',
+    registerBtn: 'Submit Registration & Generate Key',
+    registerSuccess: 'Registration successful! Hardware key bound and logged in.',
+    logoutBtn: 'Log Out',
+    notRegisteredHint: 'New supermarket associate? Click to Register',
+    alreadyRegisteredHint: 'Already registered? Click to Log In',
+    bindDeviceNotice: 'Upon login/registration, this Android device will bind its hardware Keystore private key to prevent attendance tampering.',
+    passwordMismatch: 'Passwords do not match, please verify',
+    loginFailed: 'Invalid Employee ID or password, or account is suspended',
 
     appTitle: 'Store Staff Wi-Fi Attendance',
     appCompany: 'Himart Supermarket',
@@ -630,6 +729,27 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     archCard4Desc: 'Houses attendance_records with append-only attendance_events table.',
     copyBtn: 'Copy Code',
     copiedBtn: 'Copied',
+
+    // APK Generator Tab
+    apkGeneratorTitle: 'Himart Store Staff Attendance APK Build & Distribution Hub',
+    apkGeneratorSubtitle: 'One-click Gradle build, sign, and release Android native attendance package with instant QR scan install',
+    buildSettingsTitle: 'APK Build & Packaging Configuration',
+    storeBranchLabel: 'Target Store Branch',
+    apiBaseUrlLabel: 'Backend API Base URL (Production)',
+    appVersionLabel: 'App Release Version',
+    packageNameLabel: 'Application Package ID',
+    keystoreSignLabel: 'Keystore Hardware Signature',
+    buildApkBtn: '⚡ Build & Package APK Now',
+    buildingApkBtn: 'Running Gradle Build & R8 Minification Pipeline...',
+    downloadApkBtn: 'Download Himart Attendance APK (Release)',
+    scanQrInstall: 'Scan QR Code for Instant Mobile Install',
+    qrInstructions: 'Use your Android phone camera or built-in browser to scan and download the APK directly to your phone',
+    apkFingerprint: 'SHA-256 Signature Fingerprint',
+    apkSize: 'APK File Size',
+    targetSdk: 'Target Android Version',
+    buildLogTitle: 'Gradle Build & Packaging Terminal Log',
+    installGuideTitle: 'Staff Android Installation & Wi-Fi Permissions Setup',
+    sourceCodeTab: 'View Complete Android Studio Project Source',
 
     footerCopyright: 'Himart Co., Ltd. · Supermarket Attendance Enterprise Edition',
     footerDesc: 'Engineered for retail hypermarket chains: Android Jetpack Compose + Django + PostgreSQL Wi-Fi attendance system',
